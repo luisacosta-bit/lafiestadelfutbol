@@ -16,38 +16,59 @@
     line-height:1.5;padding:0 0 60px;
   }
   header{
-    border-bottom:1px solid var(--border);padding:32px 24px 24px;
+    border-bottom:1px solid var(--border);padding:32px 24px 20px;
     position:sticky;top:0;background:var(--bg);z-index:10;
   }
+  .header-inner{max-width:820px;margin:0 auto}
   .brand{font-weight:800;letter-spacing:2px;font-size:26px}
   .brand span{color:var(--accent)}
   .sub{color:var(--muted);font-size:13px;letter-spacing:3px;margin-top:2px}
   .meta{color:var(--muted);font-size:12px;margin-top:14px}
-  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:18px}
+
+  /* Marcador grande de país (MX / Mundo / Todas) */
+  .paises{display:flex;gap:0;margin-top:18px;border:1px solid var(--border);border-radius:10px;overflow:hidden;width:fit-content}
+  .pais-btn{
+    background:var(--panel);border:none;color:var(--muted);
+    padding:11px 26px;font-size:15px;font-weight:700;cursor:pointer;
+    transition:.15s;letter-spacing:.5px;border-right:1px solid var(--border);
+  }
+  .pais-btn:last-child{border-right:none}
+  .pais-btn:hover{color:var(--txt)}
+  .pais-btn.activo{background:var(--accent);color:#000}
+
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:16px}
   #buscar{
     background:var(--panel);border:1px solid var(--border);color:var(--txt);
     padding:9px 14px;border-radius:8px;font-size:14px;flex:1;min-width:200px;
   }
   #buscar:focus{outline:none;border-color:var(--accent)}
-  .filtros{display:flex;flex-wrap:wrap;gap:8px}
+  .filtros{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
   .chip{
     background:var(--panel);border:1px solid var(--border);color:var(--muted);
-    padding:7px 13px;border-radius:20px;font-size:13px;cursor:pointer;transition:.15s;
+    padding:6px 12px;border-radius:20px;font-size:12px;cursor:pointer;transition:.15s;
   }
   .chip:hover{border-color:var(--accent);color:var(--txt)}
   .chip.activo{background:var(--accent);border-color:var(--accent);color:#000;font-weight:600}
-  main{max-width:820px;margin:0 auto;padding:24px}
+
+  main{max-width:820px;width:100%;margin-left:auto;margin-right:auto;padding:24px}
   .nota{
     background:var(--panel);border:1px solid var(--border);
     border-radius:12px;padding:18px 20px;margin-bottom:14px;transition:.15s;
   }
   .nota:hover{border-color:var(--accent)}
+  .nota .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px}
   .nota .fuente{
     display:inline-block;font-size:11px;letter-spacing:1px;text-transform:uppercase;
     color:var(--accent);background:var(--accent-soft);
-    padding:3px 9px;border-radius:5px;margin-bottom:10px;
+    padding:3px 9px;border-radius:5px;
   }
-  .nota .fecha{color:var(--muted);font-size:12px;float:right;margin-top:3px}
+  .nota .badge-pais{
+    font-size:10px;font-weight:700;letter-spacing:1px;
+    padding:2px 7px;border-radius:4px;text-transform:uppercase;
+  }
+  .badge-MX{background:#1a4d2e;color:#7ee8a0}
+  .badge-Mundo{background:#2a2a2a;color:#aaa}
+  .nota .fecha{color:var(--muted);font-size:12px;white-space:nowrap}
   .nota h2{font-size:17px;font-weight:700;margin-bottom:8px}
   .nota h2 a{color:var(--txt);text-decoration:none}
   .nota h2 a:hover{color:var(--accent)}
@@ -57,13 +78,22 @@
 </head>
 <body>
 <header>
-  <div class="brand">NRM<span>///</span></div>
-  <div class="sub">ORIGINALS · MUNDIAL</div>
-  <div class="meta" id="meta">Cargando…</div>
-  <div class="controls">
-    <input id="buscar" type="text" placeholder="Buscar en titulares y resúmenes…">
+  <div class="header-inner">
+    <div class="brand">NRM<span>///</span></div>
+    <div class="sub">ORIGINALS · MUNDIAL</div>
+    <div class="meta" id="meta">Cargando…</div>
+
+    <div class="paises" id="paises">
+      <button class="pais-btn activo" data-p="Todas">TODAS</button>
+      <button class="pais-btn" data-p="MX">🇲🇽 MÉXICO</button>
+      <button class="pais-btn" data-p="Mundo">🌎 MUNDO</button>
+    </div>
+
+    <div class="controls">
+      <input id="buscar" type="text" placeholder="Buscar en titulares y resúmenes…">
+    </div>
+    <div class="filtros" id="filtros"></div>
   </div>
-  <div class="filtros" id="filtros"></div>
 </header>
 
 <main id="lista"></main>
@@ -71,42 +101,68 @@
 <script>
 const lista=document.getElementById('lista');
 const filtros=document.getElementById('filtros');
+const paises=document.getElementById('paises');
 const meta=document.getElementById('meta');
 const buscar=document.getElementById('buscar');
-let TODAS=[], fuenteActiva='Todas', textoBusqueda='';
+let TODAS=[], paisActivo='Todas', fuenteActiva='Todas', textoBusqueda='';
 
 function fmtFecha(iso){
   if(!iso) return '';
   const d=new Date(iso); if(isNaN(d)) return '';
   return d.toLocaleDateString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
 }
-function render(){
+
+function visibles(){
   const q=textoBusqueda.toLowerCase();
-  const f=TODAS.filter(n=>{
-    const okF=fuenteActiva==='Todas'||n.fuente===fuenteActiva;
-    const okT=!q||(n.titulo+' '+n.resumen).toLowerCase().includes(q);
-    return okF&&okT;
+  return TODAS.filter(n=>{
+    const okPais   = paisActivo==='Todas' || n.pais===paisActivo;
+    const okFuente = fuenteActiva==='Todas' || n.fuente===fuenteActiva;
+    const okTexto  = !q || (n.titulo+' '+(n.resumen||'')).toLowerCase().includes(q);
+    return okPais && okFuente && okTexto;
   });
-  if(!f.length){lista.innerHTML='<div class="vacio">Nada coincide.</div>';return;}
+}
+
+function render(){
+  const f=visibles();
+  if(!f.length){lista.innerHTML='<div class="vacio">Nada coincide con tu filtro.</div>';return;}
   lista.innerHTML=f.map(n=>`
     <article class="nota">
-      <span class="fecha">${fmtFecha(n.fecha)}</span>
-      <span class="fuente">${n.fuente}</span>
+      <div class="top">
+        <span class="fuente">${n.fuente}</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="badge-pais badge-${n.pais}">${n.pais==='MX'?'México':'Mundo'}</span>
+          <span class="fecha">${fmtFecha(n.fecha)}</span>
+        </div>
+      </div>
       <h2><a href="${n.enlace}" target="_blank" rel="noopener">${n.titulo}</a></h2>
       ${n.resumen?`<p>${n.resumen}</p>`:''}
     </article>`).join('');
 }
+
+// Construye los chips de fuente SEGÚN el país activo (solo muestra fuentes relevantes)
 function construirFiltros(){
-  const fuentes=['Todas',...new Set(TODAS.map(n=>n.fuente))];
+  const base = paisActivo==='Todas' ? TODAS : TODAS.filter(n=>n.pais===paisActivo);
+  const fuentes=['Todas',...new Set(base.map(n=>n.fuente))];
+  if(!fuentes.includes(fuenteActiva)) fuenteActiva='Todas';
   filtros.innerHTML=fuentes.map(x=>
     `<button class="chip ${x===fuenteActiva?'activo':''}" data-f="${x}">${x}</button>`).join('');
   filtros.querySelectorAll('.chip').forEach(b=>{
     b.onclick=()=>{fuenteActiva=b.dataset.f;construirFiltros();render();};
   });
 }
+
+paises.querySelectorAll('.pais-btn').forEach(b=>{
+  b.onclick=()=>{
+    paisActivo=b.dataset.p;
+    paises.querySelectorAll('.pais-btn').forEach(x=>x.classList.remove('activo'));
+    b.classList.add('activo');
+    construirFiltros();
+    render();
+  };
+});
+
 buscar.addEventListener('input',e=>{textoBusqueda=e.target.value;render();});
 
-// Llama a la función de Netlify (no a un archivo local)
 fetch('/api/noticias')
   .then(r=>r.json())
   .then(data=>{
@@ -114,7 +170,9 @@ fetch('/api/noticias')
     if(!TODAS.length){
       meta.textContent=data.aviso||'Sin noticias todavía.';
     }else{
-      meta.textContent=`${data.total} noticias · actualizado ${fmtFecha(data.generado)}`;
+      const mx=TODAS.filter(n=>n.pais==='MX').length;
+      const mundo=TODAS.length-mx;
+      meta.textContent=`${data.total} noticias · ${mx} México · ${mundo} Mundo · actualizado ${fmtFecha(data.generado)}`;
     }
     construirFiltros();render();
   })
