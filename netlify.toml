@@ -1,0 +1,11 @@
+# Configuración de Netlify
+
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+# La página llama a /api/noticias y Netlify lo redirige a la función
+[[redirects]]
+  from = "/api/noticias"
+  to = "/.netlify/functions/noticias"
+  status = 200

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NRM Originals · Noticias del Mundial</title>
+<style>
+  :root{
+    --bg:#000; --panel:#0d0d0d; --border:#222;
+    --txt:#fff; --muted:#888; --accent:#39a96b; --accent-soft:#39a96b22;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.5;padding:0 0 60px;
+  }
+  header{
+    border-bottom:1px solid var(--border);padding:32px 24px 24px;
+    position:sticky;top:0;background:var(--bg);z-index:10;
+  }
+  .brand{font-weight:800;letter-spacing:2px;font-size:26px}
+  .brand span{color:var(--accent)}
+  .sub{color:var(--muted);font-size:13px;letter-spacing:3px;margin-top:2px}
+  .meta{color:var(--muted);font-size:12px;margin-top:14px}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:18px}
+  #buscar{
+    background:var(--panel);border:1px solid var(--border);color:var(--txt);
+    padding:9px 14px;border-radius:8px;font-size:14px;flex:1;min-width:200px;
+  }
+  #buscar:focus{outline:none;border-color:var(--accent)}
+  .filtros{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{
+    background:var(--panel);border:1px solid var(--border);color:var(--muted);
+    padding:7px 13px;border-radius:20px;font-size:13px;cursor:pointer;transition:.15s;
+  }
+  .chip:hover{border-color:var(--accent);color:var(--txt)}
+  .chip.activo{background:var(--accent);border-color:var(--accent);color:#000;font-weight:600}
+  main{max-width:820px;margin:0 auto;padding:24px}
+  .nota{
+    background:var(--panel);border:1px solid var(--border);
+    border-radius:12px;padding:18px 20px;margin-bottom:14px;transition:.15s;
+  }
+  .nota:hover{border-color:var(--accent)}
+  .nota .fuente{
+    display:inline-block;font-size:11px;letter-spacing:1px;text-transform:uppercase;
+    color:var(--accent);background:var(--accent-soft);
+    padding:3px 9px;border-radius:5px;margin-bottom:10px;
+  }
+  .nota .fecha{color:var(--muted);font-size:12px;float:right;margin-top:3px}
+  .nota h2{font-size:17px;font-weight:700;margin-bottom:8px}
+  .nota h2 a{color:var(--txt);text-decoration:none}
+  .nota h2 a:hover{color:var(--accent)}
+  .nota p{color:#bbb;font-size:14px}
+  .vacio{text-align:center;color:var(--muted);padding:60px 20px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">NRM<span>///</span></div>
+  <div class="sub">ORIGINALS · MUNDIAL</div>
+  <div class="meta" id="meta">Cargando…</div>
+  <div class="controls">
+    <input id="buscar" type="text" placeholder="Buscar en titulares y resúmenes…">
+  </div>
+  <div class="filtros" id="filtros"></div>
+</header>
+
+<main id="lista"></main>
+
+<script>
+const lista=document.getElementById('lista');
+const filtros=document.getElementById('filtros');
+const meta=document.getElementById('meta');
+const buscar=document.getElementById('buscar');
+let TODAS=[], fuenteActiva='Todas', textoBusqueda='';
+
+function fmtFecha(iso){
+  if(!iso) return '';
+  const d=new Date(iso); if(isNaN(d)) return '';
+  return d.toLocaleDateString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+}
+function render(){
+  const q=textoBusqueda.toLowerCase();
+  const f=TODAS.filter(n=>{
+    const okF=fuenteActiva==='Todas'||n.fuente===fuenteActiva;
+    const okT=!q||(n.titulo+' '+n.resumen).toLowerCase().includes(q);
+    return okF&&okT;
+  });
+  if(!f.length){lista.innerHTML='<div class="vacio">Nada coincide.</div>';return;}
+  lista.innerHTML=f.map(n=>`
+    <article class="nota">
+      <span class="fecha">${fmtFecha(n.fecha)}</span>
+      <span class="fuente">${n.fuente}</span>
+      <h2><a href="${n.enlace}" target="_blank" rel="noopener">${n.titulo}</a></h2>
+      ${n.resumen?`<p>${n.resumen}</p>`:''}
+    </article>`).join('');
+}
+function construirFiltros(){
+  const fuentes=['Todas',...new Set(TODAS.map(n=>n.fuente))];
+  filtros.innerHTML=fuentes.map(x=>
+    `<button class="chip ${x===fuenteActiva?'activo':''}" data-f="${x}">${x}</button>`).join('');
+  filtros.querySelectorAll('.chip').forEach(b=>{
+    b.onclick=()=>{fuenteActiva=b.dataset.f;construirFiltros();render();};
+  });
+}
+buscar.addEventListener('input',e=>{textoBusqueda=e.target.value;render();});
+
+// Llama a la función de Netlify (no a un archivo local)
+fetch('/api/noticias')
+  .then(r=>r.json())
+  .then(data=>{
+    TODAS=data.noticias||[];
+    if(!TODAS.length){
+      meta.textContent=data.aviso||'Sin noticias todavía.';
+    }else{
+      meta.textContent=`${data.total} noticias · actualizado ${fmtFecha(data.generado)}`;
+    }
+    construirFiltros();render();
+  })
+  .catch(()=>{meta.textContent='No pude conectar con el servidor de noticias.';});
+</script>
+</body>
+</html>
